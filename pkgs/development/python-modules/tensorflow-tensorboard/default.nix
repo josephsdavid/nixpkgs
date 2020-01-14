@@ -15,7 +15,7 @@
 
 buildPythonPackage rec {
   pname = "tensorflow-tensorboard";
-  version = "1.15.0";
+  version = "2.1.0";
   format = "wheel";
 
   src = fetchPypi ({
@@ -24,10 +24,10 @@ buildPythonPackage rec {
     format = "wheel";
   } // (if isPy3k then {
     python = "py3";
-    sha256 = "1g62i3nrgp8q9wfsyqqjkkfnsz7x2k018c26kdh527h1yrjjrbac";
+    sha256 = "e6e64ec1e1500cc963b300895258f9605032c3a18bb40f95f2b3b12be16ff2f2";
   } else {
     python = "py2";
-    sha256 = "0l3zc8j2sh7h1z4qpy8kfvclv3kzndri55p10i42q6xahs9phav1";
+    sha256 = "1c80eb17c9d4f2609ed11b9446f8168973f5bb7789a97e56e766a89e062a00b9";
   }));
 
   propagatedBuildInputs = [
