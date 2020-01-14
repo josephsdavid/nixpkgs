@@ -25,8 +25,6 @@
 , sse42Support ? builtins.elem (stdenv.hostPlatform.platform.gcc.arch or "default") ["westmere" "sandybridge" "ivybridge" "haswell" "broadwell" "skylake" "skylake-avx512"]
 , avx2Support  ? builtins.elem (stdenv.hostPlatform.platform.gcc.arch or "default") [                                     "haswell" "broadwell" "skylake" "skylake-avx512"]
 , fmaSupport   ? builtins.elem (stdenv.hostPlatform.platform.gcc.arch or "default") [                                     "haswell" "broadwell" "skylake" "skylake-avx512"]
-# Darwin deps
-, Foundation, Security
 }:
 
 assert cudaSupport -> nvidia_x11 != null
@@ -69,7 +67,7 @@ let
 
   tfFeature = x: if x then "1" else "0";
 
-  version = "2.1.0";
+  version = "2.0.0";
   variant = if cudaSupport then "-gpu" else "";
   pname = "tensorflow${variant}";
 
@@ -99,9 +97,8 @@ let
       owner = "tensorflow";
       repo = "tensorflow";
       rev = "v${version}";
-      sha256 ="0mb86p9vflhbxqhfqlh755kbyyw6iwv63ng33nnjprpvmn5hgcgj";
+      sha256 = "0zck3q6znmh0glak6qh2xzr25ycnhml7qcww7z8ynw2wbc75d7hp";
     };
-
 
     patches = [
       # Work around https://github.com/tensorflow/tensorflow/issues/24752
@@ -116,6 +113,7 @@ let
         sha256 = "1m2qmwv1ysqa61z6255xggwbq6mnxbig749bdvrhnch4zydxb4di";
       })
 
+      # adopt to two bazel changes: alwayslink disabled by default and no nocopts
       ./tf-1.15-bazel-1.0.patch
 
       (fetchpatch {
@@ -125,10 +123,6 @@ let
         sha256 = "077cpj0kzyqxzdya1dwh8df17zfzhqn7c685hx6iskvw2979zg2n";
       })
       ./lift-gast-restriction.patch
-
-      # cuda 10.2 does not have "-bin2c-path" option anymore
-      # https://github.com/tensorflow/tensorflow/issues/34429
-      ./cuda-10.2-no-bin2c-path.patch
     ];
 
     # On update, it can be useful to steal the changes from gentoo
@@ -164,9 +158,6 @@ let
       cudatoolkit
       cudnn
       nvidia_x11
-    ] ++ lib.optionals stdenv.isDarwin [
-      Foundation
-      Security
     ];
 
     # arbitrarily set to the current latest bazel version, overly careful
@@ -235,7 +226,6 @@ let
     postPatch = ''
       # https://github.com/tensorflow/tensorflow/issues/20919
       sed -i '/androidndk/d' tensorflow/lite/kernels/internal/BUILD
-
       # Tensorboard pulls in a bunch of dependencies, some of which may
       # include security vulnerabilities. So we make it optional.
       # https://github.com/tensorflow/tensorflow/issues/20280#issuecomment-400230560
@@ -249,17 +239,14 @@ let
         ++ lib.optionals fmaSupport ["-mfma"];
     in ''
       patchShebangs configure
-
       # dummy ldconfig
       mkdir dummy-ldconfig
       echo "#!${stdenv.shell}" > dummy-ldconfig/ldconfig
       chmod +x dummy-ldconfig/ldconfig
       export PATH="$PWD/dummy-ldconfig:$PATH"
-
       export PYTHON_LIB_PATH="$NIX_BUILD_TOP/site-packages"
       export CC_OPT_FLAGS="${lib.concatStringsSep " " opt_flags}"
       mkdir -p "$PYTHON_LIB_PATH"
-
       # To avoid mixing Python 2 and Python 3
       unset PYTHONPATH
     '';
@@ -271,7 +258,7 @@ let
     '';
 
     # FIXME: Tensorflow uses dlopen() for CUDA libraries.
-    NIX_LDFLAGS = lib.optionalString cudaSupport "-lcudart -lcublas -lcufft -lcurand -lcusolver -lcusparse -lcudnn";
+    NIX_LDFLAGS = lib.optionals cudaSupport [ "-lcudart" "-lcublas" "-lcufft" "-lcurand" "-lcusolver" "-lcusparse" "-lcudnn" ];
 
     hardeningDisable = [ "format" ];
 
@@ -317,7 +304,6 @@ let
         Libs: -L$out/lib -ltensorflow
         Cflags: -I$out/include/tensorflow
         EOF
-
         # build the source code, then copy it to $python (build_pip_package
         # actually builds a symlink farm so we must dereference them).
         bazel-bin/tensorflow/tools/pip_package/build_pip_package --src "$PWD/dist"
@@ -336,7 +322,7 @@ let
       homepage = http://tensorflow.org;
       license = licenses.asl20;
       maintainers = with maintainers; [ jyp abbradar ];
-      platforms = with platforms; linux ++ darwin;
+      platforms = platforms.linux;
       # The py2 build fails due to some issue importing protobuf. Possibly related to the fix in
       # https://github.com/akesandgren/easybuild-easyblocks/commit/1f2e517ddfd1b00a342c6abb55aef3fd93671a2b
       broken = !(xlaSupport -> cudaSupport) || !isPy3k;
@@ -398,11 +384,9 @@ in buildPythonPackage {
   checkPhase = ''
     ${python.interpreter} <<EOF
     # A simple "Hello world"
-
     import tensorflow as tf
     hello = tf.constant("Hello, world!")
     print(hello)
-
     # Fit a simple model to random data
     import numpy as np
     np.random.seed(0)
@@ -411,7 +395,6 @@ in buildPythonPackage {
         tf.keras.layers.Dense(1, activation="linear")
     ])
     model.compile(optimizer="sgd", loss="mse")
-
     x = np.random.uniform(size=(1,1))
     y = np.random.uniform(size=(1,))
     model.fit(x, y, epochs=1)

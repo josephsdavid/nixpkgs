@@ -1,6 +1,5 @@
-{ lib, fetchPypi, buildPythonPackage, isPy3k
+{ stdenv, lib, fetchPypi, buildPythonPackage, isPy3k
 , numpy
-, wheel
 , werkzeug
 , protobuf
 , grpcio
@@ -15,7 +14,7 @@
 
 buildPythonPackage rec {
   pname = "tensorflow-tensorboard";
-  version = "2.1.0";
+  version = "2.0.0";
   format = "wheel";
 
   src = fetchPypi ({
@@ -24,10 +23,10 @@ buildPythonPackage rec {
     format = "wheel";
   } // (if isPy3k then {
     python = "py3";
-    sha256 = "e6e64ec1e1500cc963b300895258f9605032c3a18bb40f95f2b3b12be16ff2f2";
+    sha256 = "0hz9nn4bbr1k5iwdrsrcdvkg36qswqdzbgsrlbkp53ddrhb9cmfk";
   } else {
     python = "py2";
-    sha256 = "1c80eb17c9d4f2609ed11b9446f8168973f5bb7789a97e56e766a89e062a00b9";
+    sha256 = "1r44xi5la0iawnnl1asak2j0x9zdgag17s96mp8vw4p84s18qghl";
   }));
 
   propagatedBuildInputs = [
@@ -35,29 +34,10 @@ buildPythonPackage rec {
     werkzeug
     protobuf
     markdown
-    grpcio
-    absl-py
-    # not declared in install_requires, but used at runtime
-    # https://github.com/NixOS/nixpkgs/issues/73840
-    wheel
+    grpcio absl-py
   ] ++ lib.optional (!isPy3k) futures;
 
-  # in the absence of a real test suite, run cli and imports
-  checkPhase = ''
-    $out/bin/tensorboard --help > /dev/null
-  '';
-
-  pythonImportsCheck = [
-    "tensorboard"
-    "tensorboard.backend"
-    "tensorboard.compat"
-    "tensorboard.data"
-    "tensorboard.plugins"
-    "tensorboard.summary"
-    "tensorboard.util"
-  ];
-
-  meta = with lib; {
+  meta = with stdenv.lib; {
     description = "TensorFlow's Visualization Toolkit";
     homepage = http://tensorflow.org;
     license = licenses.asl20;
